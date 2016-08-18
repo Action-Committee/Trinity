@@ -11,6 +11,9 @@
 
 #include <stdint.h>
 
+#include <boost/thread.hpp>
+#include <boost/shared_ptr.hpp>
+
 #include "json/json_spirit_value.h"
 
 using namespace json_spirit;
@@ -689,3 +692,70 @@ Value reconsiderblock(const Array& params, bool fHelp)
 
     return Value::null;
 }
+
+struct bootstrapparams
+{
+    string strBootstrap;
+    int nMinHeight;
+    int nMaxHeight;
+    bootstrapparams()
+    {
+        strBootstrap = "bootstrap.new.dat";
+        nMinHeight = 1;
+        nMaxHeight = chainActive.Height();
+    }
+};
+
+void ThreadMakeBootstrap(void* parg)
+{
+    bootstrapparams *p = (bootstrapparams *)parg;
+    // Make this thread recognisable as the make-bootstrap thread
+    RenameThread("bitcoin-make-bootstrap");
+
+    MakeBootstrap(p->strBootstrap, p->nMinHeight, p->nMaxHeight);
+
+    delete p;
+}
+
+Value makebootstrap(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 3)
+        throw runtime_error(
+            "makebootstrap \"filename\" ( max min )\n"
+            "\nMake bootstrap.\n"
+            "\nArguments:\n"
+            "1. \"filename\" (string, required) The filename\n"
+            "2. max          (numeric, optional, default=best height) Last block height.\n"
+            "3. min          (numeric, optional, default=1) First block height.\n"
+            "\nExamples:\n"
+            "\nMake bootstrap from whole blockchain\n"
+            + HelpExampleCli("makebootstrap", "\"bootstrap-new.dat\"") +
+            "\nMake bootstrap form the first 100 blocks\n"
+            + HelpExampleCli("makebootstrap", "\"bootstrap-new.dat\" 100") +
+            "\nMake bootstrap from 20 to 100 blocks\n"
+            + HelpExampleCli("makebootstrap", "\"bootstrap-new.dat\" 100 20") +
+            "\nAs a json rpc call\n"
+            + HelpExampleRpc("makebootstrap", "\"bootstrap-new.dat\", 100, 20")
+        );
+
+    bootstrapparams *p = new bootstrapparams();
+    if (params.size() > 0)
+        p->strBootstrap = params[0].get_str();
+
+    if (params.size() > 1)
+        p->nMaxHeight = params[1].get_int();
+
+    if (params.size() > 2)
+        p->nMinHeight = params[2].get_int();
+
+    if (p->nMaxHeight < 1 || p->nMaxHeight > chainActive.Height())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Max block height out of range");
+
+    if (p->nMinHeight < 1 || p->nMinHeight > chainActive.Height())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Min block height out of range");
+
+    new boost::thread(boost::bind(&ThreadMakeBootstrap, p));
+
+    return Value::null;
+}
+
