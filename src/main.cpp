@@ -25,6 +25,7 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
@@ -1196,6 +1197,11 @@ bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos)
     if (fileout.IsNull())
         return error("WriteBlockToDisk : OpenBlockFile failed");
 
+    return WriteBlockToDisk(block, fileout, pos);
+}
+
+bool WriteBlockToDisk(CBlock& block, CAutoFile& fileout, CDiskBlockPos& pos)
+{
     // Write index header
     unsigned int nSize = fileout.GetSerializeSize(block);
     fileout << FLATDATA(Params().MessageStart()) << nSize;
@@ -3468,6 +3474,42 @@ string GetWarnings(string strFor)
     return "error";
 }
 
+bool MakeBootstrap(std::string strBootstrap, int nMinHeight, int nMaxHeight)
+{
+    CDiskBlockPos blockPos;
+    CBlockIndex* pindex = chainActive.Genesis();
+    boost::filesystem::path pathBootstrap = GetCustomFile(strBootstrap);
+#if BOOST_VERSION >= 104400
+    boost::filesystem::path pathBootstrapTmp = boost::filesystem::unique_path(pathBootstrap.string() + ".%%%%-%%%%-%%%%-%%%%");
+#else
+    // ubuntu lucid lts has 1.40 boost
+    std::string tmp = boost::lexical_cast<std::string>(boost::this_thread::get_id());
+    boost::filesystem::path pathBootstrapTmp = pathBootstrap.string() + "." + tmp;
+#endif
+    FILE *file = fopen(pathBootstrapTmp.string().c_str(), "ab");
+    CAutoFile fileout(file, SER_DISK, CLIENT_VERSION);
+    if (fileout.IsNull())
+        return error("MakeBootstrap() : open failed");
+
+    for (; pindex; pindex = chainActive.Next(pindex))
+    {
+            CBlock block;
+            if (pindex->nHeight < nMinHeight) continue;
+            if (pindex->nHeight > nMaxHeight) break;
+
+            if (!ReadBlockFromDisk(block, pindex))
+                return error("MakeBootstrap() : ReadBlockFromDisk failed");
+
+            if (!WriteBlockToDisk(block, fileout, blockPos))
+                return error("MakeBootstrap() : WriteBlockToDisk failed");
+    }
+    fileout.fclose();
+
+    if (!RenameOver(pathBootstrapTmp, pathBootstrap))
+        return error("MakeBootstrap() : Rename-into-place failed");
+
+    return false;
+}
 
 void static RelayAlerts(CNode* pfrom)
 {
