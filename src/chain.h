@@ -116,6 +116,8 @@ public:
     //! Byte offset within rev?????.dat where this block's undo data is stored
     unsigned int nUndoPos;
 
+    CAmount nMoneySupply;
+
     //! (memory only) Total amount of work (expected number of hashes) in the chain up to and including this block
     uint256 nChainWork;
 
@@ -151,6 +153,7 @@ public:
         nDataPos = 0;
         nUndoPos = 0;
         nChainWork = 0;
+        nMoneySupply = 0;
         nTx = 0;
         nChainTx = 0;
         nStatus = 0;
@@ -354,6 +357,8 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+
+        READWRITE(nMoneySupply);
     }
 
     uint256 GetBlockHash() const
