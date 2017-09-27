@@ -1,0 +1,7 @@
+# List of Litecoin IPv4 nodes sorted by 30 day availability, block height and version.
+
+138.201.65.88:62621
+70.181.47.97:62621
+109.48.153.200:62621
+98.115.147.74:62621
+104.172.24.79:62621
